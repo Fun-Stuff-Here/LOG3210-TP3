@@ -33,6 +33,8 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
 
     private int id = 0;
     private int label = 0;
+    private String fall = "fall";
+
     /*
     génère une nouvelle variable temporaire qu'il est possible de print
     À noté qu'il serait possible de rentrer en conflit avec un nom de variable définit dans le programme.

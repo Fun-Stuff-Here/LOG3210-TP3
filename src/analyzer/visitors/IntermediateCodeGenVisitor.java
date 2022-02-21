@@ -141,9 +141,23 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     la taille de ops sera toujours 1 de moins que la taille de jjtGetNumChildren
      */
     public Object codeExtAddMul(SimpleNode node, Object data, Vector<String> ops) {
+        String EAddr="";
+        if(ops.size() >0) EAddr = genId();
+         Vector<String> Eis = new Vector<>();
         for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
+            String Ei = (String) node.jjtGetChild(i).jjtAccept(this, data);
+            Eis.add(Ei);
         }
+
+        if(ops.size() ==0) return Eis.get(0);
+
+        String toPrint = EAddr + " = ";
+
+        for (int i = 0; i < Eis.size(); i++) {
+            if(i == Eis.size()-1)  toPrint += Eis.get(i);
+            else toPrint += Eis.get(i) + " "+ ops.get(i)+" ";
+        }
+        m_writer.println(toPrint);
         return null;
     }
 
@@ -161,17 +175,49 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     //chercher un deuxième noeud enfant pour avoir une valeur puisqu'il s'agit d'une opération unaire.
     @Override
     public Object visit(ASTUnaExpr node, Object data) {
-        node.jjtGetChild(0).jjtAccept(this, data);
-        return null;
+        if(node.getOps().size()>0){
+            String EAddr = genId();
+            String EAddrTemp =EAddr;
+            String E1 = (String) node.jjtGetChild(0).jjtAccept(this, data);
+            String E1Temp =EAddr;
+
+            String toPrint = EAddr + " = ";
+            toPrint += "- ";
+            toPrint+=E1;
+            m_writer.println(toPrint);
+
+            for (int i = 0; i < node.getOps().size(); i++) {
+                EAddrTemp =genId();
+                String toPrint2 = EAddrTemp + " = ";
+                toPrint2 += "- ";
+                toPrint2 += E1Temp;
+                E1Temp = EAddrTemp;
+                m_writer.println(toPrint2);
+            }
+            return EAddr;
+        }
+        else {
+            return node.jjtGetChild(0).jjtAccept(this, data);
+        }
     }
 
     //expression logique
     @Override
     public Object visit(ASTBoolExpr node, Object data) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
+        int nChild = node.jjtGetNumChildren();
+
+        BoolLabel B = new BoolLabel(genLabel(),genLabel());
+        BoolLabel B1 = new BoolLabel(genLabel(),B.lFalse);
+        BoolLabel B2 = new BoolLabel(B.lTrue,B.lFalse);
+
+        String B1Code = (String) node.jjtGetChild(0).jjtAccept(this, B1);
+        String label = genLabel();
+        if(nChild>1){
+            String B2Code = (String) node.jjtGetChild(1).jjtAccept(this, B2);
         }
-        return null;
+
+
+        return label;
     }
 
 
@@ -194,14 +240,15 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTNotExpr node, Object data) {
-        node.jjtGetChild(0).jjtAccept(this, data);
-        return null;
+
+            return node.jjtGetChild(0).jjtAccept(this, data);
+
     }
 
     @Override
     public Object visit(ASTGenValue node, Object data) {
-        node.jjtGetChild(0).jjtAccept(this, data);
-        return null;
+        return node.jjtGetChild(0).jjtAccept(this, data);
+
     }
 
     /*
@@ -210,6 +257,7 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTBoolValue node, Object data) {
+
         return null;
     }
 
