@@ -80,7 +80,9 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     @Override
     public Object visit(ASTBlock node, Object data) {
         for (int i = 0; i < node.jjtGetNumChildren(); i++) {
+            String next = genLabel();
             node.jjtGetChild(i).jjtAccept(this, data);
+            m_writer.println(next);
         }
         return null;
     }
@@ -120,8 +122,8 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     @Override
     public Object visit(ASTAssignStmt node, Object data) {
         String id = ((ASTIdentifier) node.jjtGetChild(0)).getValue();
-        node.jjtGetChild(1).jjtAccept(this, data);
-
+        String EAddr = (String) node.jjtGetChild(1).jjtAccept(this, data);
+        m_writer.println(id + " = " + EAddr);
         return null;
     }
 
@@ -158,7 +160,7 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
             else toPrint += Eis.get(i) + " "+ ops.get(i)+" ";
         }
         m_writer.println(toPrint);
-        return null;
+        return EAddr;
     }
 
     @Override
@@ -205,6 +207,7 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     @Override
     public Object visit(ASTBoolExpr node, Object data) {
         int nChild = node.jjtGetNumChildren();
+        if (nChild ==1) return node.jjtGetChild(0).jjtAccept(this, data);
 
         BoolLabel B = new BoolLabel(genLabel(),genLabel());
         BoolLabel B1 = new BoolLabel(genLabel(),B.lFalse);
@@ -215,8 +218,6 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
         if(nChild>1){
             String B2Code = (String) node.jjtGetChild(1).jjtAccept(this, B2);
         }
-
-
         return label;
     }
 
@@ -226,6 +227,8 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTCompExpr node, Object data) {
+        int nChild = node.jjtGetNumChildren();
+        if (nChild ==1) return node.jjtGetChild(0).jjtAccept(this, data);
         for (int i = 0; i < node.jjtGetNumChildren(); i++) {
             node.jjtGetChild(i).jjtAccept(this, data);
         }
