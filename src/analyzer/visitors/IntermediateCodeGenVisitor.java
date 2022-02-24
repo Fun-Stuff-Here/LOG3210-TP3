@@ -55,7 +55,9 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTProgram node, Object data)  {
+        String next = genLabel();
         node.childrenAccept(this, data);
+        m_writer.println(next);
         return null;
     }
 
@@ -80,9 +82,14 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     @Override
     public Object visit(ASTBlock node, Object data) {
         for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            String next = genLabel();
-            node.jjtGetChild(i).jjtAccept(this, data);
-            m_writer.println(next);
+            if(i == node.jjtGetNumChildren() -1){
+                node.jjtGetChild(i).jjtAccept(this, data);
+            }
+            else {
+                String next = genLabel();
+                node.jjtGetChild(i).jjtAccept(this, data);
+                m_writer.println(next);
+            }
         }
         return null;
     }
@@ -179,7 +186,7 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     public Object visit(ASTUnaExpr node, Object data) {
         if(node.getOps().size()>0){
             String EAddr = genId();
-            String EAddrTemp =EAddr;
+            String EAddrTemp =genId();
             String E1 = (String) node.jjtGetChild(0).jjtAccept(this, data);
             String E1Temp =EAddr;
 
@@ -187,14 +194,16 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
             toPrint += "- ";
             toPrint+=E1;
             m_writer.println(toPrint);
-
-            for (int i = 0; i < node.getOps().size(); i++) {
-                EAddrTemp =genId();
-                String toPrint2 = EAddrTemp + " = ";
-                toPrint2 += "- ";
-                toPrint2 += E1Temp;
-                E1Temp = EAddrTemp;
-                m_writer.println(toPrint2);
+            if(node.getOps().size()>1){
+                for (int i = 0; i < node.getOps().size()-1; i++) {
+                    EAddrTemp =genId();
+                    String toPrint2 = EAddrTemp + " = ";
+                    toPrint2 += "- ";
+                    toPrint2 += E1Temp;
+                    E1Temp = EAddrTemp;
+                    m_writer.println(toPrint2);
+                }
+                return EAddrTemp;
             }
             return EAddr;
         }
@@ -206,32 +215,39 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
     //expression logique
     @Override
     public Object visit(ASTBoolExpr node, Object data) {
-        int nChild = node.jjtGetNumChildren();
-        if (nChild ==1) return node.jjtGetChild(0).jjtAccept(this, data);
-
-        BoolLabel B = new BoolLabel(genLabel(),genLabel());
-        BoolLabel B1 = new BoolLabel(genLabel(),B.lFalse);
-        BoolLabel B2 = new BoolLabel(B.lTrue,B.lFalse);
-
-        String B1Code = (String) node.jjtGetChild(0).jjtAccept(this, B1);
-        String label = genLabel();
-        if(nChild>1){
-            String B2Code = (String) node.jjtGetChild(1).jjtAccept(this, B2);
-        }
-        return label;
+        if (node.jjtGetNumChildren() == 1) return node.jjtGetChild(0).jjtAccept(this, data);
+        BoolLabel B = (BoolLabel) data;
+        String op = node.getOps().get(0).toString();
+        if(op =="&&") handleAnd(node,B);
+        if(op == "||") handleOr(node,B);
+        return null;
     }
 
+    private void handleAnd(ASTBoolExpr node, BoolLabel B){
+        BoolLabel B1 = new BoolLabel(genLabel(),B.lFalse);
+        BoolLabel B2 = new BoolLabel(B.lTrue, B.lFalse);
+        node.jjtGetChild(0).jjtAccept(this, B1);
+        m_writer.println(B1.lTrue);
+        node.jjtGetChild(1).jjtAccept(this, B2);
+    }
 
-
-
+    private void handleOr(ASTBoolExpr node, BoolLabel B){
+        BoolLabel B1 = new BoolLabel(B.lTrue,genLabel());
+        BoolLabel B2 = new BoolLabel(B.lTrue,B.lFalse);
+        node.jjtGetChild(0).jjtAccept(this, B1);
+        m_writer.println(B1.lFalse);
+        node.jjtGetChild(1).jjtAccept(this, B2);
+    }
 
     @Override
     public Object visit(ASTCompExpr node, Object data) {
-        int nChild = node.jjtGetNumChildren();
-        if (nChild ==1) return node.jjtGetChild(0).jjtAccept(this, data);
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
-        }
+        if (node.jjtGetNumChildren() ==1) return node.jjtGetChild(0).jjtAccept(this, data);
+        BoolLabel B = (BoolLabel) data;
+        String rel = node.getValue();
+        String E1Addr = node.jjtGetChild(0).jjtAccept(this, B).toString();
+        String E2Addr = node.jjtGetChild(1).jjtAccept(this, B).toString();
+        m_writer.println("if"+E1Addr+rel+E2Addr+"goto"+B.lFalse);
+        m_writer.println("goto" + B.lFalse);
         return null;
     }
 
@@ -243,8 +259,9 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTNotExpr node, Object data) {
-
-            return node.jjtGetChild(0).jjtAccept(this, data);
+        BoolLabel B = (BoolLabel) data;
+        BoolLabel B1 = new BoolLabel(B.lFalse,B.lTrue);
+        return node.jjtGetChild(0).jjtAccept(this, B1);
 
     }
 
@@ -260,7 +277,11 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTBoolValue node, Object data) {
-
+        BoolLabel B = (BoolLabel) data;
+        if(node.getValue())
+            m_writer.println("goto"+B.lTrue);
+        else
+            m_writer.println("goto"+B.lFalse);
         return null;
     }
 
@@ -272,7 +293,14 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTIdentifier node, Object data) {
-        return node.getValue();
+        String id = node.getValue();
+        VarType type = SymbolTable.get(id);
+        if(type == VarType.Bool){
+            BoolLabel B = (BoolLabel) data;
+            m_writer.println("if"+id+"==1goto"+B.lTrue);
+            m_writer.println("goto"+B.lFalse);
+        }
+        return id;
     }
 
     @Override

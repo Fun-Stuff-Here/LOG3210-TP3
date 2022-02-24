@@ -1,6 +1,6 @@
 a = null
-_L0
-a = null
 _L1
-a = b
+a = null
 _L2
+a = b
+_L0
