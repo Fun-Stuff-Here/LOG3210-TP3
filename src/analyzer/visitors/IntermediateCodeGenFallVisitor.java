@@ -83,15 +83,16 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTBlock node, Object data) {
-        if(node.jjtGetNumChildren() == 1) {
-            node.jjtGetChild(0).jjtAccept(this, data);
-            return null;
+        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
+            if(i == node.jjtGetNumChildren() -1){
+                node.jjtGetChild(i).jjtAccept(this, data);
+            }
+            else {
+                String next = genLabel();
+                node.jjtGetChild(i).jjtAccept(this, next);
+                m_writer.println(next);
+            }
         }
-        String s1Next = genLabel();
-        String s2Next = (String) data;
-        node.jjtGetChild(0).jjtAccept(this, s1Next);
-        m_writer.println(s1Next);
-        node.jjtGetChild(1).jjtAccept(this, s2Next);
         return null;
     }
 
@@ -140,9 +141,12 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
             m_writer.println(B.lFalse);
             m_writer.println(id+" = 0");
         }
+        else{
+            String EAddr = (String) node.jjtGetChild(1).jjtAccept(this, data);
+            m_writer.println(id + " = " + EAddr);
+        }
         return null;
     }
-
 
 
     @Override
@@ -159,10 +163,12 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
     la taille de ops sera toujours 1 de moins que la taille de jjtGetNumChildren
      */
     public Object codeExtAddMul(SimpleNode node, Object data, Vector<String> ops) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
-        }
-        return null;
+        if (node.jjtGetNumChildren() == 1) return node.jjtGetChild(0).jjtAccept(this, data);
+        String EAddr= genId();
+        String E1Addr = (String) node.jjtGetChild(0).jjtAccept(this, data);
+        String E2Addr = (String) node.jjtGetChild(1).jjtAccept(this, data);
+        m_writer.println(EAddr + " = "+ E1Addr + " "+ ops.get(0) +" "+E2Addr);
+        return EAddr;
     }
 
     @Override
@@ -179,8 +185,17 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
     //chercher un deuxième noeud enfant pour avoir une valeur puisqu'il s'agit d'une opération unaire.
     @Override
     public Object visit(ASTUnaExpr node, Object data) {
-        node.jjtGetChild(0).jjtAccept(this, data);
-        return null;
+        Vector<String> ops = node.getOps();
+        if(ops.size()==0) return node.jjtGetChild(0).jjtAccept(this, data);
+        String Ei1 = (String) node.jjtGetChild(0).jjtAccept(this, data);
+        String Ei = genId();
+        m_writer.println(Ei +" = "+ops.get(0) + " "+Ei1);
+        for (int i = 1; i < ops.size(); i++) {
+            Ei1 = Ei;
+            Ei = genId();
+            m_writer.println(Ei +" = "+ops.get(i) + " "+Ei1);
+        }
+        return Ei;
     }
 
     //expression logique
@@ -223,8 +238,23 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTCompExpr node, Object data) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
+        if (node.jjtGetNumChildren() ==1) return node.jjtGetChild(0).jjtAccept(this, data);
+        BoolLabel B = (BoolLabel) data;
+        String rel = node.getValue();
+        if(B.lTrue.equals(fall) && B.lFalse.equals(fall)){
+            m_writer.println("error");
+            return null;
+        }
+        String E1Addr = node.jjtGetChild(0).jjtAccept(this, B).toString();
+        String E2Addr = node.jjtGetChild(1).jjtAccept(this, B).toString();
+        if(!B.lTrue.equals(fall)){
+            m_writer.println("if "+E1Addr+" "+rel+" "+E2Addr+" goto "+B.lTrue);
+            if(!B.lFalse.equals(fall)){
+                m_writer.println("goto " + B.lFalse);
+            }
+        }
+        else{
+            m_writer.println("ifFalse "+E1Addr+" "+rel+" "+E2Addr+" goto "+B.lFalse);
         }
         return null;
     }
@@ -247,8 +277,7 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTGenValue node, Object data) {
-        node.jjtGetChild(0).jjtAccept(this, data);
-        return null;
+        return node.jjtGetChild(0).jjtAccept(this, data);
     }
 
     /*
