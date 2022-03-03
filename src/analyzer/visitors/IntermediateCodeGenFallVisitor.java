@@ -366,18 +366,41 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTSwitchStmt node, Object data) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
+        String next = (String) data;
+        String conditionStart = genLabel();
+        m_writer.println("goto "+conditionStart);
+        String NUM0 = (String) node.jjtGetChild(0).jjtAccept(this,data);
+
+        Vector<String> exprs = new Vector<>();
+        Vector<String> labels = new Vector<>();
+        for (int i = 1; i < node.jjtGetNumChildren(); i++) {
+
+            String caseStart = genLabel();
+            labels.add(caseStart);
+            m_writer.println(caseStart);
+            String NUMi = (String) node.jjtGetChild(i).jjtAccept(this, data);
+            m_writer.println("goto "+next);
+            if(node.jjtGetChild(i) instanceof ASTDefaultStmt) break;
+            exprs.add(NUMi);
         }
+
+
+        m_writer.println(conditionStart);
+        for (int i = 0; i < exprs.size(); i++) {
+            m_writer.println("if "+NUM0+" == "+exprs.get(i) + " goto "+labels.get(i));
+        }
+        if(node.jjtGetChild(node.jjtGetNumChildren()-1) instanceof ASTDefaultStmt){
+            m_writer.println("goto "+labels.get(labels.size()-1));
+        }
+        
         return null;
     }
 
     @Override
     public Object visit(ASTCaseStmt node, Object data) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
-        }
-        return null;
+        String NUMi = (String) node.jjtGetChild(0).jjtAccept(this, data);
+        node.jjtGetChild(1).jjtAccept(this, data);
+        return NUMi;
     }
 
     @Override
