@@ -209,7 +209,6 @@ public class IntermediateCodeGenVisitor implements ParserVisitor {
         String E1Addr = (String) node.jjtGetChild(0).jjtAccept(this, data);
         String E2Addr = (String) node.jjtGetChild(1).jjtAccept(this, data);
         m_writer.println(EAddr + " = "+ E1Addr + " "+ ops.get(0) +" "+E2Addr);
-
         return EAddr;
     }
 

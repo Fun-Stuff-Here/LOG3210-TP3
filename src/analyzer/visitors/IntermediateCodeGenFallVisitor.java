@@ -57,7 +57,9 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTProgram node, Object data)  {
-        node.childrenAccept(this, data);
+        String next = genLabel();
+        node.childrenAccept(this, next);
+        m_writer.println(next);
         return null;
     }
 
@@ -81,9 +83,15 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
 
     @Override
     public Object visit(ASTBlock node, Object data) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
+        if(node.jjtGetNumChildren() == 1) {
+            node.jjtGetChild(0).jjtAccept(this, data);
+            return null;
         }
+        String s1Next = genLabel();
+        String s2Next = (String) data;
+        node.jjtGetChild(0).jjtAccept(this, s1Next);
+        m_writer.println(s1Next);
+        node.jjtGetChild(1).jjtAccept(this, s2Next);
         return null;
     }
 
@@ -122,8 +130,16 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
     @Override
     public Object visit(ASTAssignStmt node, Object data) {
         String id = ((ASTIdentifier) node.jjtGetChild(0)).getValue();
-        node.jjtGetChild(1).jjtAccept(this, data);
-
+        VarType type = SymbolTable.get(id);
+        if(type == VarType.Bool) {
+            String next = (String) data;
+            BoolLabel B = new BoolLabel(fall, genLabel());
+            node.jjtGetChild(1).jjtAccept(this, B);
+            m_writer.println(id+" = 1");
+            m_writer.println("goto " + next);
+            m_writer.println(B.lFalse);
+            m_writer.println(id+" = 0");
+        }
         return null;
     }
 
@@ -170,14 +186,39 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
     //expression logique
     @Override
     public Object visit(ASTBoolExpr node, Object data) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
-        }
+        if (node.jjtGetNumChildren() == 1) return node.jjtGetChild(0).jjtAccept(this, data);
+        BoolLabel B = (BoolLabel) data;
+        String op = node.getOps().get(0).toString();
+        if(op.equals("&&")) handleAnd(node,B);
+        if(op.equals("||")) handleOr(node,B);
         return null;
     }
 
+    private void handleAnd(ASTBoolExpr node, BoolLabel B){
+        BoolLabel B1 = new BoolLabel(fall,B.lFalse);
+        if(B.lFalse.equals(fall)){
+            B1.lFalse = genLabel();
+        }
+        BoolLabel B2 = new BoolLabel(B.lTrue, B.lFalse);
+        node.jjtGetChild(0).jjtAccept(this, B1);
+        node.jjtGetChild(1).jjtAccept(this, B2);
+        if(B.lFalse.equals(fall)){
+            m_writer.println(B1.lFalse);
+        }
+    }
 
-
+    private void handleOr(ASTBoolExpr node, BoolLabel B){
+        BoolLabel B1 = new BoolLabel(B.lTrue,fall);
+        if(B.lTrue.equals(fall)){
+            B1.lTrue = genLabel();
+        }
+        BoolLabel B2 = new BoolLabel(B.lTrue,B.lFalse);
+        node.jjtGetChild(0).jjtAccept(this, B1);
+        node.jjtGetChild(1).jjtAccept(this, B2);
+        if(B.lTrue.equals(fall)){
+            m_writer.println(B1.lTrue);
+        }
+    }
 
 
     @Override
@@ -196,8 +237,12 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTNotExpr node, Object data) {
-        node.jjtGetChild(0).jjtAccept(this, data);
-        return null;
+        if(data instanceof BoolLabel && node.getOps().size()%2==1){
+            BoolLabel B = (BoolLabel) data;
+            BoolLabel B1 = new BoolLabel(B.lFalse,B.lTrue);
+            return node.jjtGetChild(0).jjtAccept(this, B1);
+        }
+        return node.jjtGetChild(0).jjtAccept(this, data);
     }
 
     @Override
@@ -212,6 +257,17 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTBoolValue node, Object data) {
+        BoolLabel B = (BoolLabel) data;
+        if(node.getValue()){
+            if(!B.lTrue.equals(fall)){
+                m_writer.println("goto "+B.lTrue);
+            }
+        }
+        else{
+            if(!B.lFalse.equals(fall)){
+                m_writer.println("goto "+B.lFalse);
+            }
+        }
         return null;
     }
 
@@ -223,7 +279,24 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
      */
     @Override
     public Object visit(ASTIdentifier node, Object data) {
-        return node.getValue();
+        String id = node.getValue();
+        VarType type = SymbolTable.get(id);
+        if(type == VarType.Bool){
+            BoolLabel B = (BoolLabel) data;
+            if(!B.lTrue.equals(fall)){
+                m_writer.println("if "+id+" == 1 goto "+B.lTrue);
+                if(!B.lFalse.equals(fall)){
+                    m_writer.println("goto "+B.lFalse);
+                }
+            }
+            else if(!B.lFalse.equals(fall)){
+                m_writer.println("ifFalse "+id+" == 1 goto "+B.lFalse);
+            }
+            else{
+                m_writer.println("error");
+            }
+        }
+        return id;
     }
 
     @Override
