@@ -135,14 +135,15 @@ public class IntermediateCodeGenFallVisitor implements ParserVisitor {
     }
 
 
-
-
-
     @Override
     public Object visit(ASTWhileStmt node, Object data) {
-        for (int i = 0; i < node.jjtGetNumChildren(); i++) {
-            node.jjtGetChild(i).jjtAccept(this, data);
-        }
+        String next = (String) data;
+        String begin = genLabel();
+        BoolLabel B = new BoolLabel(fall,next);
+        m_writer.println(begin);
+        node.jjtGetChild(0).jjtAccept(this,B);
+        node.jjtGetChild(1).jjtAccept(this,begin);
+        m_writer.println("goto "+begin);
         return null;
     }
 
